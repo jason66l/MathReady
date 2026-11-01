@@ -159,6 +159,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# MathReady
+.env
+data/
+out/
+.DS_Store
+
 # Spyder project settings
 .spyderproject
 .spyproject
