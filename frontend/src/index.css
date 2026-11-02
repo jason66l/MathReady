@@ -57,6 +57,7 @@ h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
   color: var(--ink);
   cursor: pointer;
 }
+.brand:hover { background: none; color: var(--accent); }
 
 main {
   max-width: 82rem;
@@ -87,7 +88,9 @@ textarea {
   resize: vertical;
 }
 
-button {
+button,
+a.button {
+  display: inline-block;
   font: inherit;
   font-weight: 600;
   padding: 0.5rem 1rem;
@@ -96,8 +99,10 @@ button {
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+  text-decoration: none;
 }
-button:hover:not(:disabled) { background: var(--accent-dark); }
+button:hover:not(:disabled),
+a.button:hover { background: var(--accent-dark); }
 button.secondary { background: #fff; color: var(--accent); }
 button.secondary:hover:not(:disabled) { background: #eef2fd; }
 button:disabled {
@@ -143,6 +148,19 @@ button:disabled {
   margin: 0;
   font-weight: 500;
 }
+
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.4rem;
+  vertical-align: -0.15em;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .page { margin-bottom: 3rem; }
 .split {
@@ -214,6 +232,15 @@ button:disabled {
   overflow-x: auto;
 }
 .math-preview math { margin: 0; }
+
+/* Rendered heading/paragraph text with inline math */
+.text-preview {
+  margin: 0 0 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.text-preview.heading { font-weight: 700; font-size: 1.1rem; }
 
 .figure-crop {
   max-width: 100%;

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Block, Doc } from "../types";
-import { mockDoc } from "../mock";
+import { exportUrl, getDocument, updateBlock, type BlockEdit } from "../api";
 import BlockCard from "../components/BlockCard";
 
 interface Props {
@@ -8,32 +8,75 @@ interface Props {
 }
 
 function ReviewPage({ docId }: Props) {
-  // For now every document is the mock. Later this loads from the backend by docId.
-  const [doc, setDoc] = useState<Doc>(mockDoc);
+  const [doc, setDoc] = useState<Doc | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
 
-  // Count blocks that still need a human to check them.
+  // Load the document, and keep reloading every 2 seconds while it's still processing.
+  useEffect(() => {
+    let stopped = false;
+    let timer: number | undefined;
+
+    async function load() {
+      try {
+        const latest = await getDocument(docId);
+        if (stopped) return;
+        setDoc(latest);
+        setLoadError(null);
+        if (latest.state === "processing") {
+          timer = window.setTimeout(load, 2000);
+        }
+      } catch (err) {
+        if (!stopped) setLoadError(err instanceof Error ? err.message : "Could not load document.");
+      }
+    }
+
+    load();
+    return () => {
+      // Runs when leaving this screen: stop polling.
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [docId]);
+
+  // Send an edit to the backend, then swap the updated block into the page.
+  async function saveBlock(blockId: string, edit: BlockEdit) {
+    const updated: Block = await updateBlock(docId, blockId, edit);
+    setDoc((current) =>
+      current && {
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          blocks: page.blocks.map((block) => (block.id === blockId ? updated : block)),
+        })),
+      },
+    );
+  }
+
+  if (loadError) {
+    return <p className="error" role="alert">{loadError}</p>;
+  }
+  if (!doc) {
+    return <p role="status">Loading...</p>;
+  }
+
   const pending = doc.pages
     .flatMap((page) => page.blocks)
     .filter((block) => block.status === "needs_review").length;
-
-  // Replace one block with an edited version, leaving everything else as is.
-  function updateBlock(updated: Block) {
-    setDoc((current) => ({
-      ...current,
-      pages: current.pages.map((page) => ({
-        ...page,
-        blocks: page.blocks.map((block) => (block.id === updated.id ? updated : block)),
-      })),
-    }));
-  }
+  const processing = doc.state === "processing";
 
   return (
     <div className="review">
       <h1>{doc.title}</h1>
 
       <div className="toolbar" role="status" aria-live="polite">
-        {pending > 0 ? (
+        {processing ? (
+          <p>
+            <span className="spinner" aria-hidden="true" /> {doc.progress}
+          </p>
+        ) : doc.state === "error" ? (
+          <p className="error">{doc.progress}</p>
+        ) : pending > 0 ? (
           <p>
             <strong>{pending}</strong> item{pending === 1 ? "" : "s"} need your review before export.
           </p>
@@ -50,9 +93,13 @@ function ReviewPage({ docId }: Props) {
           Show only items needing review
         </label>
 
-        <button disabled={pending > 0} onClick={() => alert(`Export ${docId}: coming soon`)}>
-          Download accessible HTML
-        </button>
+        {processing || pending > 0 ? (
+          <button disabled>Download accessible HTML</button>
+        ) : (
+          <a className="button" href={exportUrl(docId)}>
+            Download accessible HTML
+          </a>
+        )}
       </div>
 
       {doc.pages.map((page) => {
@@ -66,15 +113,15 @@ function ReviewPage({ docId }: Props) {
             <h2 id={`page-${page.n}`}>Page {page.n}</h2>
             <div className="split">
               <div className="original">
-                {page.image ? (
-                  <img src={page.image} alt={`Original scan of page ${page.n}`} />
-                ) : (
-                  <div className="placeholder">Page image will appear here</div>
-                )}
+                <img src={page.image} alt={`Original scan of page ${page.n}`} />
               </div>
               <div className="blocks">
                 {blocks.map((block) => (
-                  <BlockCard key={block.id} block={block} onChange={updateBlock} />
+                  <BlockCard
+                    key={block.id}
+                    block={block}
+                    onSave={(edit) => saveBlock(block.id, edit)}
+                  />
                 ))}
               </div>
             </div>
