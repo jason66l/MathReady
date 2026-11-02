@@ -15,7 +15,7 @@ load_dotenv()
 
 import base64, json, os, sys
 
-import fitz  # PyMuPDF
+import pymupdf as fitz
 from latex2mathml.converter import convert
 from openai import OpenAI
 
