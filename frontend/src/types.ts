@@ -4,6 +4,14 @@ export type BlockType = "heading" | "paragraph" | "equation" | "figure" | "table
 // Review state. Export is blocked while any block is "needs_review".
 export type BlockStatus = "draft" | "needs_review" | "approved";
 
+// One part of a figure, found by SAM 3.1 and described by Muse Spark.
+export interface FigurePart {
+  label: string;            // e.g. "Normal force N"
+  description: string;      // e.g. "Arrow pointing up and away from the ramp"
+  kind: string;             // what SAM searched for, e.g. "arrow"
+  box: number[];            // [left, top, right, bottom] as 0-1 fractions of the image
+}
+
 // One piece of a page: a heading, paragraph, equation, figure or table.
 export interface Block {
   id: string;               // e.g. "p1b3" = page 1, block 3
@@ -26,6 +34,7 @@ export interface Block {
   image?: string;           // URL of the cropped figure image
   alt_short?: string;       // one-sentence alt text
   alt_long?: string;        // full description
+  parts?: FigurePart[];     // explorable parts (SAM 3.1 boxes + descriptions)
 
   // table
   caption?: string;

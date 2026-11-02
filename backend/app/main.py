@@ -76,8 +76,8 @@ class BlockEdit(BaseModel):
     latex: str | None = None
     alt_short: str | None = None
     alt_long: str | None = None
+    parts: list[dict] | None = None
     approve: bool = False
-
 
 @app.patch("/api/documents/{doc_id}/blocks/{block_id}")
 def edit_block(doc_id: str, block_id: str, edit: BlockEdit):

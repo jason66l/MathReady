@@ -1,4 +1,4 @@
-import type { Block, Doc } from "./types";
+import type { Block, Doc, FigurePart } from "./types";
 
 // Turn a failed response into a readable error message.
 async function check(res: Response): Promise<Response> {
@@ -37,6 +37,7 @@ export interface BlockEdit {
   latex?: string;
   alt_short?: string;
   alt_long?: string;
+  parts?: FigurePart[];
   approve?: boolean;
 }
 

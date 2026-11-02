@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Block } from "../types";
 import type { BlockEdit } from "../api";
+import FigureExplorer from "./FigureExplorer";
 
 interface Props {
   block: Block;
@@ -14,7 +15,7 @@ const STATUS_LABEL = {
 };
 
 // The fields a reviewer can edit.
-type Fields = Pick<Block, "text" | "latex" | "alt_short" | "alt_long">;
+type Fields = Pick<Block, "text" | "latex" | "alt_short" | "alt_long" | "parts">;
 
 function fieldsOf(block: Block): Fields {
   return {
@@ -22,6 +23,7 @@ function fieldsOf(block: Block): Fields {
     latex: block.latex ?? "",
     alt_short: block.alt_short ?? "",
     alt_long: block.alt_long ?? "",
+    parts: block.parts ?? [],
   };
 }
 
@@ -39,7 +41,9 @@ function BlockCard({ block, onSave }: Props) {
   const original = fieldsOf(block);
   const edit: BlockEdit = {};
   (Object.keys(draft) as (keyof Fields)[]).forEach((key) => {
-    if (draft[key] !== original[key]) edit[key] = draft[key];
+    if (JSON.stringify(draft[key]) !== JSON.stringify(original[key])) {
+      (edit as Record<string, unknown>)[key] = draft[key];
+    }
   });
   const changed = Object.keys(edit).length > 0;
 
@@ -59,16 +63,20 @@ function BlockCard({ block, onSave }: Props) {
   const isApproved = block.status === "approved" && !changed;
 
   return (
-    <article id={block.id} className={`block ${block.status}`}>
+    <article id={block.id} className={`block ${block.status} ${changed ? "editing" : ""}`}>
       <p className="block-meta">
         <span className="block-type">{block.type}</span>
         <span className={`badge ${block.status}`}>{STATUS_LABEL[block.status]}</span>
         {block.confidence !== undefined && (
-          <span>confidence {Math.round(block.confidence * 100)}%</span>
+          <span className="meta-detail">{Math.round(block.confidence * 100)}% confidence</span>
         )}
+        {block.type === "figure" && (block.parts?.length ?? 0) > 0 && (
+          <span className="meta-detail">{block.parts!.length} parts found</span>
+        )}
+        {changed && <span className="meta-detail unsaved">Unsaved changes</span>}
       </p>
 
-      {block.error && <p className="error">{block.error}</p>}
+      {block.error && <p className="alert alert-error">{block.error}</p>}
 
       {/* Equations: rendered MathML + editable LaTeX */}
       {block.type === "equation" && (
@@ -81,18 +89,25 @@ function BlockCard({ block, onSave }: Props) {
           <label htmlFor={fieldId("latex")}>LaTeX</label>
           <textarea
             id={fieldId("latex")}
+            className="code"
             rows={2}
+            spellCheck={false}
             value={draft.latex}
             onChange={(e) => setDraft({ ...draft, latex: e.target.value })}
           />
         </>
       )}
 
-      {/* Figures: image + alt text fields */}
+      {/* Figures: image with SAM parts + alt text fields */}
       {block.type === "figure" && (
         <>
           {block.image ? (
-            <img className="figure-crop" src={block.image} alt="" />
+            <FigureExplorer
+              image={block.image}
+              parts={draft.parts ?? []}
+              onChange={(parts) => setDraft({ ...draft, parts })}
+              idPrefix={block.id}
+            />
           ) : (
             <div className="placeholder small">No figure image</div>
           )}
@@ -102,7 +117,9 @@ function BlockCard({ block, onSave }: Props) {
             value={draft.alt_short}
             onChange={(e) => setDraft({ ...draft, alt_short: e.target.value })}
           />
-          <p className="hint">{(draft.alt_short ?? "").length} characters (aim for under 150)</p>
+          <p className={`hint ${(draft.alt_short ?? "").length > 150 ? "over" : ""}`}>
+            {(draft.alt_short ?? "").length} / 150 characters
+          </p>
           <label htmlFor={fieldId("long")}>Full description</label>
           <textarea
             id={fieldId("long")}
@@ -115,25 +132,27 @@ function BlockCard({ block, onSave }: Props) {
 
       {/* Tables: real table with rendered math in cells */}
       {block.type === "table" && (
-        <table>
-          {block.caption && <caption>{block.caption}</caption>}
-          <thead>
-            <tr>
-              {(block.headers_html ?? block.headers ?? []).map((h, i) => (
-                <th key={i} scope="col" dangerouslySetInnerHTML={{ __html: h }} />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(block.rows_html ?? block.rows ?? []).map((row, r) => (
-              <tr key={r}>
-                {row.map((cell, c) => (
-                  <td key={c} dangerouslySetInnerHTML={{ __html: cell }} />
+        <div className="table-wrap">
+          <table>
+            {block.caption && <caption>{block.caption}</caption>}
+            <thead>
+              <tr>
+                {(block.headers_html ?? block.headers ?? []).map((h, i) => (
+                  <th key={i} scope="col" dangerouslySetInnerHTML={{ __html: h }} />
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(block.rows_html ?? block.rows ?? []).map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, c) => (
+                    <td key={c} dangerouslySetInnerHTML={{ __html: cell }} />
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Headings and paragraphs: rendered preview + editable text */}
@@ -146,7 +165,7 @@ function BlockCard({ block, onSave }: Props) {
             />
           )}
           <label htmlFor={fieldId("text")}>
-            {block.type === "heading" ? `Heading (level ${block.level ?? 1})` : "Paragraph"}
+            {block.type === "heading" ? `Heading text (level ${block.level ?? 1})` : "Paragraph text"}
           </label>
           <textarea
             id={fieldId("text")}
@@ -157,14 +176,14 @@ function BlockCard({ block, onSave }: Props) {
         </>
       )}
 
-      {saveError && <p className="error" role="alert">{saveError}</p>}
+      {saveError && <p className="alert alert-error" role="alert">{saveError}</p>}
 
       <div className="actions">
         <button className="secondary" disabled={!changed || saving} onClick={() => save(false)}>
           Save
         </button>
-        <button disabled={isApproved || saving} onClick={() => save(true)}>
-          {saving ? "Saving..." : isApproved ? "Approved" : "Save and approve"}
+        <button className={isApproved ? "approved-button" : ""} disabled={isApproved || saving} onClick={() => save(true)}>
+          {saving ? "Saving..." : isApproved ? "✓ Approved" : "Save and approve"}
         </button>
       </div>
     </article>

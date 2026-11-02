@@ -22,11 +22,19 @@ Rules:
 - Figure bbox is in pixel coordinates of this image and should tightly cover the figure.
 - confidence = how sure you are the LaTeX matches the page exactly."""
 
+PARTS_PROMPT = """This figure is from a STEM course. List the kinds of distinct visual parts a student would
+want to explore one by one (for example: arrow, block, ramp, resistor, axis, curve, cell).
+Use short, general nouns that an object detector can find. Max 6. Skip plain text and single letters.
+Return ONLY JSON: {"parts": ["arrow", "block"]}"""
+
 ALT_PROMPT = """Write alt text for this figure from a STEM course, for a student using a screen reader.
 Context from the page: {context}
-{segments}
-Return ONLY JSON: {{"alt_short": "one sentence naming what the figure shows",
-"alt_long": "a structured description: what it depicts, each labeled part, directions, axes and values a student needs to solve the problem"}}"""
+{regions}
+Return ONLY JSON:
+{{"alt_short": "one sentence naming what the figure shows",
+  "alt_long": "a structured description: what it depicts, each labeled part, directions, axes and values a student needs",
+  "parts": [{{"region": 1, "label": "short name, e.g. Normal force N", "description": "one sentence: what it is, where it points or sits"}}]}}
+Only include regions that are real, meaningful parts. Leave "parts" empty if no regions were given."""
 
 _client = None
 
@@ -55,6 +63,15 @@ def _parse_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
+def _ask(prompt: str, png: bytes) -> dict:
+    """Send one prompt + one image to Muse Spark and parse the JSON reply."""
+    resp = client().chat.completions.create(
+        model=config.META_MODEL,
+        messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, _image_part(png)]}],
+    )
+    return _parse_json(resp.choices[0].message.content)
+
+
 def read_page(png: bytes, text_layer: str = "") -> list[dict]:
     """Page image (+ optional embedded PDF text) -> ordered list of blocks."""
     content = [{"type": "text", "text": PAGE_PROMPT}]
@@ -69,15 +86,25 @@ def read_page(png: bytes, text_layer: str = "") -> list[dict]:
     return _parse_json(resp.choices[0].message.content).get("blocks", [])
 
 
-def describe_figure(png: bytes, context: str = "", segment_labels: list[str] | None = None) -> dict:
-    """Figure crop -> {"alt_short": ..., "alt_long": ...}."""
-    segments = ""
-    if segment_labels:
-        segments = "Parts located by segmentation: " + ", ".join(segment_labels)
-    prompt = ALT_PROMPT.format(context=context[:1500] or "(none)", segments=segments)
+def list_part_types(png: bytes) -> list[str]:
+    """Figure crop -> short nouns for SAM to search for, e.g. ["arrow", "block", "ramp"]."""
+    parts = _ask(PARTS_PROMPT, png).get("parts", [])
+    return [p.strip() for p in parts if isinstance(p, str) and p.strip()][:6]
 
-    resp = client().chat.completions.create(
-        model=config.META_MODEL,
-        messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, _image_part(png)]}],
-    )
-    return _parse_json(resp.choices[0].message.content)
+
+def describe_figure(png: bytes, context: str = "", regions: list[dict] | None = None) -> dict:
+    """Figure crop (+ SAM regions) -> alt_short, alt_long, and a label/description per region.
+
+    regions: [{"region": 1, "kind": "arrow", "box": [left, top, right, bottom]}], box in 0-1 fractions.
+    """
+    region_text = ""
+    if regions:
+        lines = [
+            f"Region {r['region']}: a {r['kind']} spanning "
+            f"{r['box'][0]:.0%}-{r['box'][2]:.0%} across and {r['box'][1]:.0%}-{r['box'][3]:.0%} down"
+            for r in regions
+        ]
+        region_text = "An object detector found these regions:\n" + "\n".join(lines)
+
+    prompt = ALT_PROMPT.format(context=context[:1500] or "(none)", regions=region_text)
+    return _ask(prompt, png)

@@ -102,10 +102,11 @@ def process(doc_id: str, pdf_bytes: bytes) -> None:
 
 
 def describe_figure(folder, page_png: bytes, block: dict, context: str) -> None:
-    """Crop the figure from the page, segment it, and draft alt text."""
+    """Crop the figure, find its parts with SAM, and draft alt text + part descriptions."""
+    # 1. Crop the figure out of the page (with padding, since the box is approximate).
     img = Image.open(io.BytesIO(page_png))
     x0, y0, x1, y1 = [int(v) for v in block.get("bbox") or [0, 0, img.width, img.height]]
-    pad = int(0.03 * max(img.width, img.height))  # about 50px at 200 dpi
+    pad = int(0.03 * max(img.width, img.height))
     crop = img.crop((max(0, x0 - pad), max(0, y0 - pad), min(img.width, x1 + pad), min(img.height, y1 + pad)))
     buf = io.BytesIO()
     crop.save(buf, "PNG")
@@ -113,15 +114,43 @@ def describe_figure(folder, page_png: bytes, block: dict, context: str) -> None:
     (folder / "figures" / f"{block['id']}.png").write_bytes(crop_png)
     block["image"] = f"figures/{block['id']}.png"
 
-    regions = sam.segment(crop_png)
-    block["segments"] = regions
+    # 2. Muse Spark names the kinds of parts; SAM finds each one.
+    regions = []
     try:
-        alt = meta_client.describe_figure(crop_png, context, [r.get("label", "") for r in regions])
+        for kind in meta_client.list_part_types(crop_png):
+            for box in sam.find(crop_png, kind):
+                regions.append({"region": len(regions) + 1, "kind": kind, "box": box})
+        regions = regions[:12]  # keep it manageable for the student and the prompt
+    except Exception as e:
+        print(f"SAM step skipped for {block['id']}: {e}")
+        regions = []
+
+    # 3. Muse Spark writes alt text and labels each region.
+    try:
+        alt = meta_client.describe_figure(crop_png, context, regions)
         block["alt_short"] = alt.get("alt_short", "")
         block["alt_long"] = alt.get("alt_long", "")
         block["error"] = None
+
+        by_number = {r["region"]: r for r in regions}
+        parts = []
+        for p in alt.get("parts", []):
+            try:
+                region = by_number.get(int(p.get("region", 0)))
+            except (TypeError, ValueError):
+                region = None
+            if region:
+                parts.append({
+                    "label": p.get("label", region["kind"]),
+                    "description": p.get("description", ""),
+                    "kind": region["kind"],
+                    "box": region["box"],  # [left, top, right, bottom], 0-1 fractions
+                })
+        block["parts"] = parts
     except Exception as e:
         block["alt_short"] = block.get("caption_guess", "")
         block["alt_long"] = ""
+        block["parts"] = []
         block["error"] = f"Alt text could not be drafted: {e}"
+
     block["status"] = "needs_review"  # a human always approves figure descriptions
