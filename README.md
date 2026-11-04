@@ -4,9 +4,8 @@
 
 Built for the **Meta Global AI Developer Hackathon 2026** with **Muse Spark** and **SAM 3.1** on the Meta Model API.
 
-▶️ **[Watch the 3-minute demo](https://youtu.be/YOUR_VIDEO_ID)** &nbsp;·&nbsp; Theme: *Build for Your World* &nbsp;·&nbsp; Track: *Indie Developer*
+▶️ **[Watch the 3-minute demo](https://youtu.be/A8dL87ee2Pw)** &nbsp;·&nbsp; Theme: *Build for Your World* &nbsp;·&nbsp; Track: *Indie Developer*
 
-![MathReady review workspace](docs/review.png)
 
 ---
 
