@@ -15,12 +15,13 @@ const STATUS_LABEL = {
 };
 
 // The fields a reviewer can edit.
-type Fields = Pick<Block, "text" | "latex" | "alt_short" | "alt_long" | "parts">;
+type Fields = Pick<Block, "text" | "latex" | "speech" | "alt_short" | "alt_long" | "parts">;
 
 function fieldsOf(block: Block): Fields {
   return {
     text: block.text ?? "",
     latex: block.latex ?? "",
+    speech: block.speech ?? "",
     alt_short: block.alt_short ?? "",
     alt_long: block.alt_long ?? "",
     parts: block.parts ?? [],
@@ -78,7 +79,7 @@ function BlockCard({ block, onSave }: Props) {
 
       {block.error && <p className="alert alert-error">{block.error}</p>}
 
-      {/* Equations: rendered MathML + editable LaTeX */}
+      {/* Equations: rendered MathML + editable LaTeX + spoken version */}
       {block.type === "equation" && (
         <>
           <div
@@ -95,6 +96,14 @@ function BlockCard({ block, onSave }: Props) {
             value={draft.latex}
             onChange={(e) => setDraft({ ...draft, latex: e.target.value })}
           />
+          <label htmlFor={fieldId("speech")}>Spoken as (what screen readers say)</label>
+          <textarea
+            id={fieldId("speech")}
+            rows={2}
+            value={draft.speech}
+            onChange={(e) => setDraft({ ...draft, speech: e.target.value })}
+          />
+          <p className="hint">Updates automatically when you change the LaTeX. Edit it to change the wording.</p>
         </>
       )}
 

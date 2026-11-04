@@ -26,6 +26,7 @@ export interface Block {
 
   // equation
   latex?: string;           // what Muse Spark read
+  speech?: string;          // plain-English reading for screen readers
   mathml?: string;          // what screen readers navigate
   display?: boolean;        // true = its own line, false = inline
   confidence?: number;      // 0-1, how sure the model was

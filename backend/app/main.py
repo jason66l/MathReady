@@ -74,6 +74,7 @@ class BlockEdit(BaseModel):
     """Fields the review screen can change. Anything left out stays the same."""
     text: str | None = None
     latex: str | None = None
+    speech: str | None = None
     alt_short: str | None = None
     alt_long: str | None = None
     parts: list[dict] | None = None
@@ -90,6 +91,10 @@ def edit_block(doc_id: str, block_id: str, edit: BlockEdit):
 
     changes = edit.model_dump(exclude_none=True, exclude={"approve"})
     previous_status = block.get("status")
+    if "speech" in changes:
+        block["speech_edited"] = True       # keep the reviewer's wording
+    elif "latex" in changes:
+        block["speech_edited"] = False      # new LaTeX -> regenerate the spoken version
     block.update(changes)
     if changes and block["type"] != "figure":
         pipeline.finalize_block(block)  # regenerate MathML / inline HTML from the edit

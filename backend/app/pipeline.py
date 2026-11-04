@@ -9,6 +9,7 @@ from latex2mathml.converter import convert
 from PIL import Image
 
 from . import meta_client, sam, store
+from .speech import latex_to_speech
 from .config import MAX_PAGES
 
 REVIEW_THRESHOLD = 0.9          # equations below this confidence get flagged
@@ -20,12 +21,20 @@ def to_mathml(latex: str, display: bool = True) -> str:
 
 
 def render_inline(text: str) -> str:
-    """Text with \\( ... \\) math -> safe HTML with inline MathML."""
+    """Text with \\( ... \\) math -> safe HTML with inline math.
+
+    Each piece of math becomes: spoken English for screen readers (visually hidden)
+    + MathML for sighted readers (hidden from screen readers). That way continuous
+    reading flows straight through sentences instead of stopping at every equation.
+    """
     out, last = [], 0
     for m in INLINE_MATH.finditer(text or ""):
         out.append(html.escape(text[last:m.start()]))
+        latex = m.group(1)
         try:
-            out.append(to_mathml(m.group(1), display=False))
+            mathml = to_mathml(latex, display=False)
+            spoken = html.escape(latex_to_speech(latex))
+            out.append(f'<span class="visually-hidden">{spoken}</span><span aria-hidden="true">{mathml}</span>')
         except Exception:
             out.append(html.escape(m.group(0)))  # leave broken math as plain text
         last = m.end()
@@ -39,6 +48,9 @@ def finalize_block(block: dict) -> None:
     block["error"] = None
 
     if kind == "equation":
+        # Spoken version for screen readers, unless a reviewer wrote their own.
+        if not block.get("speech_edited"):
+            block["speech"] = latex_to_speech(block.get("latex", ""))
         try:
             block["mathml"] = to_mathml(block.get("latex", ""), block.get("display", True))
             low = float(block.get("confidence", 0)) < REVIEW_THRESHOLD

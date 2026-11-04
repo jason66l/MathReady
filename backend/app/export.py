@@ -15,7 +15,11 @@ caption{font-weight:600;margin-bottom:.4rem}summary{cursor:pointer}
 .part.on{border:3px solid #e11d48;background:rgba(225,29,72,.12)}
 .parts{margin:.5rem 0 0;padding-left:1.4rem}
 .parts button{all:unset;cursor:pointer;padding:.2rem .3rem;border-radius:4px}
-.parts button:focus-visible,.parts button:hover{outline:3px solid #2357d9;background:#eef2fd}"""
+.parts button:focus-visible,.parts button:hover{outline:3px solid #2357d9;background:#eef2fd}
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.equation{margin:1rem 0}.equation math[display=block]{margin:.25rem 0}
+.explore{font-size:.85rem;color:#444}.explore summary{color:#2357d9}
+.explore[open]{padding:.5rem .75rem;border:1px solid #ddd;border-radius:6px}"""
 
 # Highlights a figure part on the image when its list item is focused or hovered.
 SCRIPT = """document.querySelectorAll('[data-part]').forEach(function(btn){
@@ -24,6 +28,22 @@ SCRIPT = """document.querySelectorAll('[data-part]').forEach(function(btn){
   btn.addEventListener('focus',on);btn.addEventListener('blur',off);
   btn.addEventListener('mouseenter',on);btn.addEventListener('mouseleave',off);
 });"""
+
+
+def _equation(block: dict) -> str:
+    """Display equation: spoken English for continuous reading, the visual MathML,
+    and an "Explore this equation" toggle with navigable MathML for term-by-term reading."""
+    mathml = block.get("mathml", "")
+    spoken = html.escape(block.get("speech", ""))
+    if not spoken:
+        return mathml
+    return (
+        f'<div class="equation">'
+        f'<p class="visually-hidden">{spoken}</p>'
+        f'<div aria-hidden="true">{mathml}</div>'
+        f'<details class="explore"><summary>Explore this equation</summary>{mathml}</details>'
+        f"</div>"
+    )
 
 
 def _table(block: dict) -> str:
@@ -84,7 +104,7 @@ def build_html(doc: dict) -> str:
             elif kind == "paragraph":
                 parts.append(f"<p>{render_inline(block.get('text', ''))}</p>")
             elif kind == "equation":
-                parts.append(block.get("mathml", ""))
+                parts.append(_equation(block))
             elif kind == "table":
                 parts.append(_table(block))
             elif kind == "figure":

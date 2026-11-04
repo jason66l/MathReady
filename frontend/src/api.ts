@@ -35,6 +35,7 @@ export async function getDocument(docId: string): Promise<Doc> {
 export interface BlockEdit {
   text?: string;
   latex?: string;
+  speech?: string;
   alt_short?: string;
   alt_long?: string;
   parts?: FigurePart[];
